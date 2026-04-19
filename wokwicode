@@ -1,0 +1,54 @@
+import dht 
+import machine  
+import time
+import network
+from umqtt.simple import MQTTClient
+
+capteur_dht = dht.DHT22(machine.Pin(25)) 
+led = machine.Pin(14,machine.Pin.OUT) 
+
+wlan = network.WLAN(network.STA_IF)
+wlan.active(True)
+wlan.connect("Wokwi-GUEST", "")
+time.sleep(3)
+print("IP de l'ESP32 :", wlan.ifconfig()[0])
+
+def lire_dht22(): 
+    """Lit l'humidité. Retourne None si erreur.""" 
+    try: 
+        capteur_dht.measure()
+        humidite = capteur_dht.humidity()
+        temperature = capteur_dht.temperature()
+        return humidite,temperature
+    except OSError as e: 
+        print(f"Erreur DHT22 : {e}") 
+        return None
+client = MQTTClient(
+    client_id="send_esp32",
+    server="a24d3616ca0742ebb8394584bf1d7bdb.s1.eu.hivemq.cloud",
+    port=8883,
+    user="OthmaneRahel",
+    password="Iloveyoumama123##",
+    ssl=True,
+    ssl_params={"server_hostname": "a24d3616ca0742ebb8394584bf1d7bdb.s1.eu.hivemq.cloud"}
+)
+
+try:
+    client.connect()
+    print("Connecté au broker MQTT")
+except Exception as e:
+    print(f" Erreur: {e}")
+
+
+def callback(topic, msg):
+    print(f"   Topic: {topic.decode()}")
+    print(f"   Message: {msg.decode()}")
+
+client.set_callback(callback)
+
+while True:
+    hum,temp = lire_dht22();
+    print(hum,temp)
+    client.publish("value/tempeature", str(temp))
+    client.publish("value/humidite", str(hum))
+    client.subscribe("value/led_on_off",qos=0)
